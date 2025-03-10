@@ -8,6 +8,9 @@ const port = 3000;
 
 app.use(cors());
 app.use(bodyParser.json());
+app.use(cors({
+    origin: '*'
+}));
 
 const filePath = 'data.json';
 
@@ -29,16 +32,16 @@ function writeData(data) {
 // API REST
 
 // Lettura di tutti gli elementi
-app.get('/items', (req, res) => {
+app.get('/songs', (req, res) => {
     const data = readData();
-    res.json(data);
+    res.json(data.songs);
 });
 
 // Lettura di un elemento specifico
-app.get('/items/:id', (req, res) => {
+app.get('/songs/:id', (req, res) => {
     const id = parseInt(req.params.id);
     const data = readData();
-    const item = data.find(item => item.id === id);
+    const item = data.songs.find(item => item.id === id);
     if (item) {
         res.json(item);
     } else {
@@ -47,24 +50,24 @@ app.get('/items/:id', (req, res) => {
 });
 
 // Aggiunta di un nuovo elemento
-app.post('/items', (req, res) => {
+app.post('/songs', (req, res) => {
     const newItem = req.body;
     const data = readData();
-    newItem.id = data.length > 0 ? data[data.length - 1].id + 1 : 1;
-    data.push(newItem);
+    newItem.id = data.songs.length > 0 ? Math.max(...data.songs.map((currSong) => currSong.id))+1 : 1;    
+    data.songs.push(newItem);
     writeData(data);
     res.json(newItem);
 });
 
 // Modifica di un elemento esistente
-app.put('/items/:id', (req, res) => {
+app.put('/songs/:id', (req, res) => {
     const id = parseInt(req.params.id);
     const updatedItem = req.body;
     const data = readData();
-    const index = data.findIndex(item => item.id === id);
+    const index = data.songs.findIndex(item => item.id === id);
     if (index !== -1) {
         updatedItem.id = id;
-        data[index] = updatedItem;
+        data.songs[index] = updatedItem;
         writeData(data);
         res.json(updatedItem);
     } else {
@@ -73,12 +76,12 @@ app.put('/items/:id', (req, res) => {
 });
 
 // Eliminazione di un elemento
-app.delete('/items/:id', (req, res) => {
+app.delete('/songs/:id', (req, res) => {
     const id = parseInt(req.params.id);
     const data = readData();
-    const index = data.findIndex(item => item.id === id);
+    const index = data.songs.findIndex(item => item.id === id);
     if (index !== -1) {
-        data.splice(index, 1);
+        data.songs.splice(index, 1);
         writeData(data);
         res.status(204).send();
     } else {
