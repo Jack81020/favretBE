@@ -1,94 +1,107 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const fs = require('fs');
 const cors = require('cors');
 
 const app = express();
 const port = 3000;
 
-app.use(cors());
 app.use(bodyParser.json());
 app.use(cors({
     origin: '*'
 }));
 
-const filePath = 'data.json';
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const uri = "mongodb+srv://admin:admin@favretdb.c347z.mongodb.net/?appName=FavretDB";
 
-// Funzione per leggere i dati dal file JSON
-function readData() {
+
+// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  }
+});
+
+async function connectToDatabase() {
+  try {
+    await client.connect();
+    console.log('Connessione a MongoDB riuscita!');
+    return client.db('songs');
+  } catch (err) {
+    console.error('Errore di connessione a MongoDB:', err);
+    throw err;
+  }
+}
+
+async function run() {
+  const db = await connectToDatabase();
+  let collection = db.collection("songs");
+
+  // Lettura di tutti gli elementi
+  app.get('/songs', async (req, res) => {
     try {
-        const data = fs.readFileSync(filePath, 'utf8');
-        return JSON.parse(data);
+      let results = await collection.find({})
+          .toArray();
+      res.send(results).status(200);
     } catch (err) {
-        return [];
+      res.status(400).json({ message: err.message });
     }
+  });
+
+  // Lettura di un elemento specifico
+  app.get('/songs/:id', async (req, res) => {
+    try {
+      let query = {_id: new ObjectId(req.params.id)};
+      let result = await collection.findOne(query);
+      if (!result) res.send("Not found").status(404);
+      else res.send(result).status(200);
+    } catch (err) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  // Aggiunta di un nuovo elemento
+  app.post('/songs', async (req, res) => {
+    try {
+      let newDocument = req.body;
+      newDocument.date = new Date();
+      let result = await collection.insertOne(newDocument);
+      res.send(result).status(204);
+    } catch (err) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  // Modifica di un elemento esistente
+  app.put('/songs/:id', async (req, res) => {
+      try {
+        delete req.body._id;
+        const result = await collection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: req.body });
+        if (result.matchedCount > 0) {
+          const updatedItem = await collection.findOne({ _id: new ObjectId(req.params.id) });
+          res.json(updatedItem);
+        } else {
+          res.status(404).json({ message: 'Elemento non trovato' });
+        }
+      } catch (err) {
+        res.status(400).json({ message: err.message });
+      }
+  });
+
+  // Eliminazione di un elemento
+  app.delete('/songs/:id', async (req, res) => {
+    try {
+      const query = { _id: new ObjectId(req.params.id) };
+      let result = await collection.deleteOne(query);
+      res.send(result).status(200);
+    } catch (err) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.listen(port, () => {
+      console.log(`Server in ascolto sulla porta ${port}`);
+  });
 }
-
-// Funzione per scrivere i dati nel file JSON
-function writeData(data) {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-}
-
-// API REST
-
-// Lettura di tutti gli elementi
-app.get('/songs', (req, res) => {
-    const data = readData();
-    res.json(data.songs);
-});
-
-// Lettura di un elemento specifico
-app.get('/songs/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    const data = readData();
-    const item = data.songs.find(item => item.id === id);
-    if (item) {
-        res.json(item);
-    } else {
-        res.status(404).send('Elemento non trovato');
-    }
-});
-
-// Aggiunta di un nuovo elemento
-app.post('/songs', (req, res) => {
-    const newItem = req.body;
-    const data = readData();
-    newItem.id = data.songs.length > 0 ? Math.max(...data.songs.map((currSong) => currSong.id))+1 : 1;    
-    data.songs.push(newItem);
-    writeData(data);
-    res.json(newItem);
-});
-
-// Modifica di un elemento esistente
-app.put('/songs/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    const updatedItem = req.body;
-    const data = readData();
-    const index = data.songs.findIndex(item => item.id === id);
-    if (index !== -1) {
-        updatedItem.id = id;
-        data.songs[index] = updatedItem;
-        writeData(data);
-        res.json(updatedItem);
-    } else {
-        res.status(404).send('Elemento non trovato');
-    }
-});
-
-// Eliminazione di un elemento
-app.delete('/songs/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    const data = readData();
-    const index = data.songs.findIndex(item => item.id === id);
-    if (index !== -1) {
-        data.songs.splice(index, 1);
-        writeData(data);
-        res.status(204).send();
-    } else {
-        res.status(404).send('Elemento non trovato');
-    }
-});
-
-app.listen(port, () => {
-    console.log(`Server in ascolto sulla porta ${port}`);
-});
+run().catch(console.dir);
